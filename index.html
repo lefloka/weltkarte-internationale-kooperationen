@@ -1,0 +1,114 @@
+
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Globale Präsenz – Internationale Projekte</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<header class="page-header">
+    <div class="container">
+        <p class="eyebrow">UNSERE INTERNATIONALE ARBEIT</p>
+        <h1>Globale Präsenz</h1>
+        <p class="intro">
+            Internationale Kooperationsprojekte unseres Instituts
+        </p>
+    </div>
+</header>
+
+<main class="container">
+
+    <section class="filter-section">
+        <h2>Projekte filtern</h2>
+
+        <div class="filter-grid">
+
+            <div class="filter-group">
+                <label for="statusFilter">Projektstatus</label>
+                <select id="statusFilter">
+                    <option value="all">Alle Status</option>
+                    <option value="active">Aktiv</option>
+                    <option value="inactive">Inaktiv</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label for="yearFilter">Laufzeit / Jahr</label>
+                <select id="yearFilter">
+                    <option value="all">Alle Laufzeiten</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label for="departmentFilter">Institutsabteilung</label>
+                <select id="departmentFilter">
+                    <option value="all">Alle Abteilungen</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label for="countryFilter">Teilnehmendes Land</label>
+                <select id="countryFilter">
+                    <option value="all">Alle Länder</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label for="themeFilter">Thematische Schlagworte</label>
+                <select id="themeFilter">
+                    <option value="all">Alle Themen</option>
+                </select>
+            </div>
+
+        </div>
+
+        <button id="resetFilters" class="reset-button">
+            Filter zurücksetzen
+        </button>
+    </section>
+    <section id="country-info" class="info-section">
+        <div class="info-placeholder">
+            <h2>Informationen</h2>
+            <p>Wähle ein Land auf der Karte aus,
+            um die zugehörigen Projekte anzuzeigen.</p>
+        </div>
+    </section>
+    <section class="map-section">
+        <div class="map-heading">
+            <h2>Weltweite Projektübersicht</h2>
+            <p>Klicke auf ein markiertes Land, um die Projekte anzuzeigen.</p>
+        </div>
+
+        <div id="world-map" class="map-container">
+            <p>Weltkarte wird geladen ...</p>
+        </div>
+    </section>
+
+    <section class="results-section">
+        <div class="results-heading">
+            <h2>Gefilterte Projekte</h2>
+            <span id="projectCount">0 Projekte</span>
+        </div>
+
+        <div id="projectResults" class="project-grid"></div>
+    </section>
+
+</main>
+
+<footer class="page-footer">
+    <div class="container">
+        <p>Internationale Projektübersicht · Prototyp</p>
+    </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3-geo-projection@4"></script>
+<script src="js/projects.js"></script>
+<script src="script.js"></script>
+
+</body>
+</html>

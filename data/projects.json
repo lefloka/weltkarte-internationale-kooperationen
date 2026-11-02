@@ -1,0 +1,75 @@
+{
+  "projects": [
+    {
+      "id": 1,
+      "name": "Kooperationsprojekt Afrika",
+      "status": "active",
+      "region": "",
+      "countries": [
+        "KEN",
+        "UGA"
+      ],
+      "startYear": 2025,
+      "endYear": 2029,
+      "department": "Abteilung Internationales",
+      "partners": [
+        "Einrichtung X"
+      ],
+      "themes": [],
+      "description": "Beispielprojekt zur internationalen Zusammenarbeit in Afrika.",
+      "color": "#399A91"
+    },
+    {
+      "id": 2,
+      "name": "Forschungskooperation Indien",
+      "status": "active",
+      "countries": [
+        "IND"
+      ],
+      "startYear": 2025,
+      "endYear": 2028,
+      "department": "Abteilung Forschung",
+      "partners": [
+        "Einrichtung Y"
+      ],
+      "themes": [],
+      "description": "Beispielprojekt zur internationalen Forschungskooperation."
+    },
+    {
+      "id": 3,
+      "name": "Europäische Partnerschaft",
+      "status": "inactive",
+      "countries": [
+        "DEU",
+        "FRA",
+        "ESP"
+      ],
+      "startYear": 2020,
+      "endYear": 2024,
+      "department": "Abteilung Internationales",
+      "partners": [
+        "Einrichtung Z"
+      ],
+      "themes": [],
+      "description": "Beispiel für eine abgeschlossene internationale Kooperation."
+    },
+    {
+      "id": 4,
+      "name": "Test",
+      "status": "active",
+      "region": "Europe",
+      "countries": [
+        "DEU",
+        "FRA"
+      ],
+      "startYear": 2026,
+      "endYear": 2028,
+      "department": "Forschung",
+      "partners": [],
+      "theme": "Noch nicht zugeordnet",
+      "description": "",
+      "color": "#399A91",
+      "themes": []
+    }
+  ]
+}
