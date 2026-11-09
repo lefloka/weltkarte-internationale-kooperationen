@@ -83,9 +83,35 @@
             <p>Klicke auf ein markiertes Land, um die Projekte anzuzeigen.</p>
         </div>
 
-        <div id="world-map" class="map-container">
-            <p>Weltkarte wird geladen ...</p>
+                
+        <div class="map-wrapper">
+
+            <div class="map-controls">
+
+                <button type="button" id="zoomIn" aria-label="Vergrößern">
+                    +
+                </button>
+
+                <button type="button" id="zoomOut" aria-label="Verkleinern">
+                    −
+                </button>
+
+                <button type="button" id="resetZoom">
+                    Ansicht zurücksetzen
+                </button>
+
+            </div>
+
+            <div id="world-map" class="map-container">
+                <p>Weltkarte wird geladen ...</p>
+            </div>
+
+            <p class="map-hint">
+                Mausrad zum Zoomen · Ziehen zum Verschieben
+            </p>
+
         </div>
+
     </section>
 
     <section class="results-section">
@@ -112,3 +138,4 @@
 
 </body>
 </html>
+
