@@ -1,7 +1,6 @@
-
-
 /* ==========================================
    INTERAKTIVE WELTKARTE
+   Dezente Kreise mit Hover und Auswahl
 ========================================== */
 
 const MAP_WIDTH = 1000;
@@ -10,14 +9,33 @@ const MAP_HEIGHT = 510;
 const COLORS = {
     neutral: "#DDE4E8",
     active: "#399A91",
-    inactive: "#D9A45B",
-    multiple: "#7189A5",
-    selected: "#244B60"
+    selected: "#244B60",
+    hover: "#286F70"
 };
+
+const MARKER_OPACITY = 0.32;
+const HOVER_OPACITY = 1;
+const SELECTED_OPACITY = 1;
+
 
 let worldData = null;
 let selectedCountry = null;
 let activeFilters = {};
+let mapPath = null;
+let radiusScale = null;
+let countryCounts = new Map();
+
+// ==========================================
+// ZOOM-STEUERUNG
+// ==========================================
+
+let zoomBehavior = null;
+let mapGroup = null;
+
+const ZOOM_MIN = 1;
+const ZOOM_MAX = 8;
+const ZOOM_STEP = 1.4;
+
 
 // HTML-Elemente
 const mapContainer = document.getElementById("world-map");
@@ -58,7 +76,7 @@ function escapeHTML(value) {
 }
 
 function getProjectTheme(project) {
-    if (Array.isArray(project.themes)) {
+    if (Array.isArray(project.themes) && project.themes.length) {
         return project.themes.join(", ");
     }
 
@@ -66,6 +84,8 @@ function getProjectTheme(project) {
 }
 
 function getCountryDisplayName(code) {
+    if (!worldData) return code;
+
     const feature = worldData.features.find(
         item => getCountryCode(item) === code
     );
@@ -109,7 +129,6 @@ function populateFilters() {
 
     projects.forEach(project => {
 
-        // Laufzeiten
         if (project.startYear && project.endYear) {
             for (
                 let year = Number(project.startYear);
@@ -123,21 +142,21 @@ function populateFilters() {
             if (project.endYear) years.add(Number(project.endYear));
         }
 
-        // Abteilungen
         if (project.department) {
             departments.add(project.department);
         }
 
-        // Länder
         (project.countries || []).forEach(code => {
             countries.add(code);
         });
 
-        // Thematische Schlagworte
         const theme = getProjectTheme(project);
 
         if (theme && theme !== "Noch nicht zugeordnet") {
-            themes.add(theme);
+            theme.split(",")
+                .map(item => item.trim())
+                .filter(Boolean)
+                .forEach(item => themes.add(item));
         }
     });
 
@@ -149,7 +168,6 @@ function populateFilters() {
     const themeFilter =
         document.getElementById("themeFilter");
 
-    // Vorhandene dynamische Optionen entfernen
     [
         yearFilter,
         departmentFilter,
@@ -166,9 +184,7 @@ function populateFilters() {
     });
 
     [...departments].sort().forEach(department => {
-        departmentFilter.add(
-            new Option(department, department)
-        );
+        departmentFilter.add(new Option(department, department));
     });
 
     [...countries].sort().forEach(code => {
@@ -244,7 +260,11 @@ function renderProjects(projects) {
                     ${escapeHTML(getProjectTheme(project))}
                 </p>
 
-                <p>${escapeHTML(project.description || "")}</p>
+                <p>
+                    <strong>Ansprechpartner:</strong>
+                    ${escapeHTML(project.contactPerson || "Keine Angabe")}
+                </p>
+
 
             </article>
         `;
@@ -254,40 +274,200 @@ function renderProjects(projects) {
 
 
 // ==========================================
-// KARTENFARBEN
+// KREISGRÖSSEN
 // ==========================================
 
-function getCountryColor(code, projects) {
+function getMarkerRadius(feature) {
 
-    const assigned = projects.filter(project =>
-        (project.countries || []).includes(code)
-    );
+    const count = countryCounts.get(getCountryCode(feature)) || 1;
 
-    if (assigned.length === 0) {
-        return COLORS.neutral;
-    }
-
-    const hasActive = assigned.some(
-        project => project.status === "active"
-    );
-
-    const hasInactive = assigned.some(
-        project => project.status === "inactive"
-    );
-
-    if (hasActive && hasInactive) {
-        return COLORS.multiple;
-    }
-
-    if (assigned.length > 1) {
-        return COLORS.multiple;
-    }
-
-    return hasActive
-        ? COLORS.active
-        : COLORS.inactive;
+    return radiusScale(count);
 }
 
+
+// ==========================================
+// MARKER ZURÜCKSETZEN
+// ==========================================
+
+function resetMarkerAppearance(selection) {
+
+    selection
+        .interrupt()
+        .transition()
+        .duration(180)
+        .attr("r", getMarkerRadius)
+        .attr("opacity", function(d) {
+            return d === selectedCountry
+                ? SELECTED_OPACITY
+                : MARKER_OPACITY;
+        })
+        .attr("fill", function(d) {
+            return d === selectedCountry
+                ? COLORS.selected
+                : COLORS.active;
+        })
+        .attr("stroke", function(d) {
+            return d === selectedCountry
+                ? COLORS.selected
+                : "#FFFFFF";
+        })
+        .attr("stroke-width", function(d) {
+            return d === selectedCountry ? 3 : 1.5;
+        });
+}
+
+
+// ==========================================
+// KREISE INTERAKTIV MACHEN
+// ==========================================
+
+function setupMarkerInteractions(markers, markerGroup) {
+
+    markers
+
+        .attr("tabindex", 0)
+        .attr("role", "button")
+        .attr("aria-label", feature =>
+            `${getCountryName(feature)} auswählen`
+        )
+
+        // MOUSEOVER
+        .on("mouseenter", function(event, feature) {
+
+            const marker = d3.select(this);
+
+            marker
+                .interrupt()
+                .raise()
+                .transition()
+                .duration(180)
+                .attr("r", getMarkerRadius(feature) * 1.18)
+                .attr("opacity", HOVER_OPACITY)
+                .attr("fill", COLORS.hover)
+                .attr("stroke", COLORS.selected)
+                .attr("stroke-width", 3);
+
+        })
+
+        // MOUSEOUT
+        .on("mouseleave", function(event, feature) {
+
+            const marker = d3.select(this);
+
+            marker
+                .interrupt()
+                .transition()
+                .duration(180)
+                .attr("r", getMarkerRadius(feature))
+                .attr("opacity", function() {
+                    return feature === selectedCountry
+                        ? SELECTED_OPACITY
+                        : MARKER_OPACITY;
+                })
+                .attr("fill", function() {
+                    return feature === selectedCountry
+                        ? COLORS.selected
+                        : COLORS.active;
+                })
+                .attr("stroke", function() {
+                    return feature === selectedCountry
+                        ? COLORS.selected
+                        : "#FFFFFF";
+                })
+                .attr("stroke-width", function() {
+                    return feature === selectedCountry ? 3 : 1.5;
+                });
+
+        })
+
+        // KLICK
+        .on("click", function(event, feature) {
+
+            event.stopPropagation();
+
+            selectCountry(feature);
+
+        })
+
+        // TASTATUR: ENTER UND LEERTASTE
+        .on("keydown", function(event, feature) {
+
+            if (event.key === "Enter" || event.key === " ") {
+
+                event.preventDefault();
+
+                selectCountry(feature);
+            }
+
+        })
+
+        // TOOLTIP
+        .append("title")
+        .text(feature => {
+
+            const count =
+                countryCounts.get(getCountryCode(feature));
+
+            return `${getCountryName(feature)}: ${count} Kooperation(en)`;
+
+        });
+}
+
+
+// ==========================================
+// LAND AUSWÄHLEN
+// ==========================================
+
+function selectCountry(feature) {
+    // Länderumrisse aktualisieren
+    mapGroup.selectAll(".country")
+        .classed("selected-country", d =>
+            getCountryCode(d) === getCountryCode(feature)
+        );
+    selectedCountry = feature;
+
+    const markerGroup = d3.select("#world-svg")
+        .select(".marker-group");
+
+    markerGroup
+        .selectAll(".project-marker")
+        .each(function(d) {
+
+            const marker = d3.select(this);
+
+            if (d === selectedCountry) {
+
+                marker
+                    .interrupt()
+                    .classed("selected", true)
+                    .raise()
+                    .transition()
+                    .duration(180)
+                    .attr("opacity", SELECTED_OPACITY)
+                    .attr("fill", COLORS.selected)
+                    .attr("stroke", "#183746")
+                    .attr("stroke-width", 3.5);
+
+            } else {
+
+                marker
+                    .classed("selected", false);
+
+                resetMarkerAppearance(marker);
+            }
+
+        });
+
+    const projects = readFilters();
+
+    showCountryInfo(feature, projects);
+
+}
+
+
+// ==========================================
+// KARTE AKTUALISIEREN
+// ==========================================
 
 function updateMap() {
 
@@ -295,20 +475,104 @@ function updateMap() {
 
     renderProjects(projects);
 
-    d3.select("#world-svg")
-        .selectAll(".country")
-        .transition()
-        .duration(200)
-        .attr("fill", feature => {
+    // Länder neutral darstellen
+    mapGroup.selectAll(".country") 
+        .attr("fill", COLORS.neutral);
 
-            const code = getCountryCode(feature);
+    // Projekte je Land zählen
+    countryCounts = new Map();
 
-            return getCountryColor(code, projects);
+    projects.forEach(project => {
+
+        (project.countries || []).forEach(code => {
+
+            countryCounts.set(
+                code,
+                (countryCounts.get(code) || 0) + 1
+            );
+
         });
 
+    });
+
+    const counts = [...countryCounts.values()];
+    const maxCount = Math.max(1, ...counts);
+
+    radiusScale = d3.scaleSqrt()
+        .domain([1, maxCount])
+        .range([8, 23]);
+
+    const markers = worldData.features.filter(feature =>
+        countryCounts.has(getCountryCode(feature))
+    );
+
+    const markerGroup = mapGroup
+        .selectAll(".marker-group")
+        .data([null])
+        .join("g")
+        .attr("class", "marker-group");
+
+    const circles = markerGroup
+        .selectAll(".project-marker")
+        .data(markers, feature => getCountryCode(feature))
+        .join(
+            enter => enter.append("circle"),
+            update => update,
+            exit => exit.remove()
+        )
+        .attr("class", feature =>
+            feature === selectedCountry
+                ? "project-marker selected"
+                : "project-marker"
+        )
+        .attr("cx", feature => mapPath.centroid(feature)[0])
+        .attr("cy", feature => mapPath.centroid(feature)[1])
+        .attr("r", getMarkerRadius)
+        .attr("opacity", feature =>
+            feature === selectedCountry
+                ? SELECTED_OPACITY
+                : MARKER_OPACITY
+        )
+        .attr("fill", feature =>
+            feature === selectedCountry
+                ? COLORS.selected
+                : COLORS.active
+        )
+        .attr("stroke", feature =>
+            feature === selectedCountry
+                ? COLORS.selected
+                : "#FFFFFF"
+        )
+        .attr("stroke-width", feature =>
+            feature === selectedCountry ? 3 : 1.5
+        )
+        .style("cursor", "pointer");
+
+    setupMarkerInteractions(circles, markerGroup);
+
+    // Ausgewähltes Land aktualisieren
     if (selectedCountry) {
-        showCountryInfo(selectedCountry, projects);
+
+        const currentFeature = worldData.features.find(
+            feature =>
+                getCountryCode(feature) ===
+                getCountryCode(selectedCountry)
+        );
+
+        if (currentFeature) {
+
+            selectedCountry = currentFeature;
+
+            showCountryInfo(currentFeature, projects);
+
+        } else {
+
+            selectedCountry = null;
+
+        }
+
     }
+
 }
 
 
@@ -328,7 +592,7 @@ function showCountryInfo(feature, projects) {
     const info = document.getElementById("country-info");
 
     info.innerHTML = `
-        <div class="country-info-content">
+        <div class="country-info-content selected-info">
 
             <p class="eyebrow">INTERNATIONALE KOOPERATION</p>
 
@@ -342,37 +606,44 @@ function showCountryInfo(feature, projects) {
                     <div class="project-grid">
 
                         ${countryProjects.map(project => `
+
                             <article class="project-card">
+
+                                <span class="project-status ${escapeHTML(project.status)}">
+                                    ${project.status === "active" ? "Aktiv" : "Inaktiv"}
+                                </span>
 
                                 <h3>${escapeHTML(project.name)}</h3>
 
                                 <p>
-                                    Status:
-                                    ${project.status === "active" ? "Aktiv" : "Inaktiv"}
-                                </p>
-
-                                <p>
-                                    Laufzeit:
+                                    <strong>Laufzeit:</strong>
                                     ${escapeHTML(project.startYear || "–")}
                                     –
                                     ${escapeHTML(project.endYear || "–")}
                                 </p>
 
                                 <p>
-                                    Abteilung:
+                                    <strong>Abteilung:</strong>
                                     ${escapeHTML(project.department || "Keine Angabe")}
                                 </p>
 
                                 <p>
-                                    Themen:
+                                    <strong>Partner:</strong>
+                                    ${(project.partners || []).map(escapeHTML).join(", ") || "Keine Angabe"}
+                                </p>
+
+                                <p>
+                                    <strong>Themen:</strong>
                                     ${escapeHTML(getProjectTheme(project))}
                                 </p>
 
                                 <p>
-                                    ${escapeHTML(project.description || "")}
+                                    <strong>Ansprechpartner:</strong>
+                                    ${escapeHTML(project.contactPerson || "Keine Angabe")}
                                 </p>
 
                             </article>
+
                         `).join("")}
 
                     </div>
@@ -390,8 +661,10 @@ function showCountryInfo(feature, projects) {
 }
 
 
+
 // ==========================================
 // WELTKARTE ZEICHNEN
+// MIT ZOOM UND VERSCHIEBEN
 // ==========================================
 
 function renderMap() {
@@ -404,37 +677,110 @@ function renderMap() {
         .attr("role", "img")
         .attr("aria-label", "Interaktive Weltkarte");
 
+    // Projektion erstellen
     const projection = d3.geoWinkel3()
         .fitExtent(
             [[15, 15], [MAP_WIDTH - 15, MAP_HEIGHT - 15]],
             worldData
         );
 
-    const path = d3.geoPath().projection(projection);
+    mapPath = d3.geoPath().projection(projection);
 
-    svg.selectAll(".country")
+    // Gemeinsame Gruppe für Länder und Projektkreise
+    mapGroup = svg.append("g")
+        .attr("class", "map-group");
+
+    // Länder zeichnen und interaktiv machen
+    mapGroup.selectAll(".country")
         .data(worldData.features)
         .join("path")
-        .attr("class", "country")
-        .attr("d", path)
-        .attr("fill", COLORS.neutral)
-        .attr("stroke", "#FFFFFF")
-        .attr("stroke-width", 0.7)
+        .attr("class", feature =>
+            feature === selectedCountry
+                ? "country selected-country"
+                : "country"
+        )
+        .attr("d", mapPath)
         .on("click", function(event, feature) {
 
-            selectedCountry = feature;
+            event.stopPropagation();
 
-            svg.selectAll(".country")
-                .classed("selected", false);
+            selectCountry(feature);
 
-            d3.select(this).classed("selected", true);
-
-            showCountryInfo(feature, readFilters());
         })
         .append("title")
         .text(feature => getCountryName(feature));
 
+    // Zoom-Funktion aktivieren
+    zoomBehavior = d3.zoom()
+        .scaleExtent([ZOOM_MIN, ZOOM_MAX])
+        .extent([[0, 0], [MAP_WIDTH, MAP_HEIGHT]])
+        .on("zoom", function(event) {
+
+            mapGroup.attr(
+                "transform",
+                event.transform
+            );
+
+        });
+
+    svg.call(zoomBehavior);
+
+    // Doppelklick-Zoom deaktivieren
+    svg.on("dblclick.zoom", null);
+
+    // Projektkreise ergänzen
     updateMap();
+
+    // Zoom-Schaltflächen aktivieren
+    setupZoomControls(svg);
+}
+
+
+// ==========================================
+// ZOOM-SCHALTFLÄCHEN
+// ==========================================
+
+function setupZoomControls(svg) {
+
+    // Vergrößern
+    document.getElementById("zoomIn")
+        .addEventListener("click", () => {
+
+            svg.transition()
+                .duration(300)
+                .call(
+                    zoomBehavior.scaleBy,
+                    ZOOM_STEP
+                );
+
+        });
+
+    // Verkleinern
+    document.getElementById("zoomOut")
+        .addEventListener("click", () => {
+
+            svg.transition()
+                .duration(300)
+                .call(
+                    zoomBehavior.scaleBy,
+                    1 / ZOOM_STEP
+                );
+
+        });
+
+    // Ansicht zurücksetzen
+    document.getElementById("resetZoom")
+        .addEventListener("click", () => {
+
+            svg.transition()
+                .duration(500)
+                .call(
+                    zoomBehavior.transform,
+                    d3.zoomIdentity
+                );
+
+        });
+
 }
 
 
@@ -459,7 +805,8 @@ function setupFilterEvents() {
             document.getElementById("themeFilter").value = "all";
 
             selectedCountry = null;
-
+            mapGroup.selectAll(".country")
+                .classed("selected-country", false);
             document.getElementById("country-info").innerHTML = `
                 <div class="info-placeholder">
                     <h2>Informationen</h2>
@@ -467,11 +814,8 @@ function setupFilterEvents() {
                 </div>
             `;
 
-            d3.select("#world-svg")
-                .selectAll(".country")
-                .classed("selected", false);
-
             updateMap();
+
         });
 }
 
@@ -496,6 +840,9 @@ async function startApplication() {
         }
 
         worldData = await response.json();
+
+        checkCountryCodes();
+        
 
         if (!worldData.features || !worldData.features.length) {
             throw new Error("Die GeoJSON-Datei enthält keine Länder.");
@@ -529,4 +876,25 @@ async function startApplication() {
 // START
 // ==========================================
 
+function checkCountryCodes() {
+
+    console.log("=== GEOJSON-LÄNDERCHECK ===");
+
+    worldData.features.forEach(feature => {
+
+        const p = feature.properties || {};
+
+        console.log({
+            name: getCountryName(feature),
+            ISO_A3: p.ISO_A3,
+            ADM0_A3: p.ADM0_A3,
+            SOV_A3: p.SOV_A3,
+            verwendeterCode: getCountryCode(feature)
+        });
+
+    });
+
+}
+
 startApplication();
+
